@@ -1,0 +1,8 @@
+{
+  "username": "some_user",
+  "password": "some_password",
+  "public_ip": "some_host",
+  "port": 8080,
+  "serialdev": "/dev/rfcomm0",
+  "serialbaud": 115200
+}
