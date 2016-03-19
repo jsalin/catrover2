@@ -1,12 +1,16 @@
 <!DOCTYPE html>
 <html>
+
 <head>
-<title>Cat Rover</title>
-<script src="jquery-2.1.4.min.js"></script>
-<link rel="stylesheet" href="style.css">
+  <title>Cat Rover</title>
+  <script src="jquery-2.1.4.min.js"></script>
+  <link rel="stylesheet" href="style.css"/>
 </head>
+
 <body>
+
 <script>
+
 // Quick wrapper function for making motor control API calls
 function move(amount, dir) {
   $.get("move", {amount: amount, dir: dir});
@@ -33,50 +37,58 @@ $(function() {
     else if (e.which == 39) move(100, 'right');
   });
 });
+
 </script>
+
 <div>
-<div style="float:left;width:328px" id="cornered">
-<center>
-<img src="images/white_light_on.png" onclick="$.get('light_on')"/>
-<img src="images/nothing.png"/><img src="images/nothing.png"/>
-<img src="images/forward3.png" onclick="move(1600, 'forward')"/>
-<img src="images/nothing.png"/><img src="images/nothing.png"/>
-<img src="images/red_light_on.png" onclick="$.get('laser_on')"/><br/>
 
-<img src="images/light_off.png" onclick="$.get('light_off')"/>
-<img src="images/nothing.png"/><img src="images/nothing.png"/>
-<img src="images/forward2.png" onclick="move(800, 'forward')"/>
-<img src="images/nothing.png"/><img src="images/nothing.png"/>
-<img src="images/light_off.png" onclick="$.get('laser_off')"/><br/>
+  <div style="float:left" id="cornered">
+    <img src="" alt="" id="webcam" onerror="this.style.opacity=0" onload="this.style.opacity=1" style="width:640px;height:360px"/>
+  </div>
 
-<img src="images/forward1.png" onclick="move(200, 'forward')"/><br/>
+  <div style="float:left;width:328px" id="cornered">
+    <center>
+    <img src="images/white_light_on.png" onclick="$.get('light_on')"/>
+    <img src="images/nothing.png"/><img src="images/nothing.png"/>
+    <img src="images/forward3.png" onclick="move(1600, 'forward')"/>
+    <img src="images/nothing.png"/><img src="images/nothing.png"/>
+    <img src="images/red_light_on.png" onclick="$.get('laser_on')"/><br/>
 
-<img src="images/left4.png" onclick="move(400, 'left')"/>
-<img src="images/left3.png" onclick="move(200, 'left')"/>
-<img src="images/left2.png" onclick="move(100, 'left')"/>
-<img src="images/left1.png" onclick="move(50, 'left')"/>
-<img src="images/center.png"/>
-<img src="images/right1.png" onclick="move(50, 'right')"/>
-<img src="images/right2.png" onclick="move(100, 'right')"/>
-<img src="images/right3.png" onclick="move(200, 'right')"/>
-<img src="images/right4.png" onclick="move(400, 'right')"/><br/>
+    <img src="images/light_off.png" onclick="$.get('light_off')"/>
+    <img src="images/nothing.png"/><img src="images/nothing.png"/>
+    <img src="images/forward2.png" onclick="move(800, 'forward')"/>
+    <img src="images/nothing.png"/><img src="images/nothing.png"/>
+    <img src="images/light_off.png" onclick="$.get('laser_off')"/><br/>
 
-<img src="images/backward1.png" onclick="move(200, 'backward')"/><br/>
-<img src="images/backward2.png" onclick="move(800, 'backward')"/><br/>
+    <img src="images/forward1.png" onclick="move(200, 'forward')"/><br/>
 
-<img src="images/camera_on.png" onclick="$.get('camera_on')"/>
-<img src="images/camera_off.png" onclick="$.get('camera_off')"/>
-<img src="images/nothing.png"/>
-<img src="images/backward3.png" onclick="move(1200, 'backward')"/>
-<img src="images/nothing.png"/>
-<img src="images/nothing.png"/>
-<img src="images/nothing.png"/><br/>
-<a href="http://#rover_ip#:8000/catrover.m3u">Listen</a> to audio when camera enabled<br/>
-<audio controls autoplay src="http://#rover_ip#:8000/catrover"></audio>
+    <img src="images/left4.png" onclick="move(400, 'left')"/>
+    <img src="images/left3.png" onclick="move(200, 'left')"/>
+    <img src="images/left2.png" onclick="move(100, 'left')"/>
+    <img src="images/left1.png" onclick="move(50, 'left')"/>
+    <img src="images/center.png"/>
+    <img src="images/right1.png" onclick="move(50, 'right')"/>
+    <img src="images/right2.png" onclick="move(100, 'right')"/>
+    <img src="images/right3.png" onclick="move(200, 'right')"/>
+    <img src="images/right4.png" onclick="move(400, 'right')"/><br/>
+
+    <img src="images/backward1.png" onclick="move(200, 'backward')"/><br/>
+    <img src="images/backward2.png" onclick="move(800, 'backward')"/><br/>
+
+    <img src="images/camera_on.png" onclick="$.get('camera_on')"/>
+    <img src="images/camera_off.png" onclick="$.get('camera_off')"/>
+    <img src="images/nothing.png"/>
+    <img src="images/backward3.png" onclick="move(1200, 'backward')"/>
+    <img src="images/nothing.png"/>
+    <img src="images/nothing.png"/>
+    <img src="images/nothing.png"/><br/>
+    <a href="http://#rover_ip#:8000/catrover.m3u">Listen</a> to audio when camera enabled<br/>
+    <audio controls autoplay src="http://#rover_ip#:8000/catrover"></audio>
+    </center>
+  </div>
+
 </div>
-<div style="float:left" id="cornered">
-<img src="" alt="" id="webcam" onerror="this.style.opacity=0" onload="this.style.opacity=1" style="width:640px;height:360px"/>
-</div>
-</div>
+
 </body>
+
 </html>

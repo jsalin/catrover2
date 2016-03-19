@@ -2,6 +2,7 @@ Cat Rover 2
 ===========
 
 Firmware, frontend and backend for a droid remote controlled over web.
+
 Copyright (C) 2015 Jussi Salin <salinjus@gmail.com> under GPLv3 license.
 
 Overview
@@ -12,8 +13,11 @@ Hardware
 --------
 
 Hardware is based on a four wheeled platform available at: http://www.ebay.co.uk/itm/252085512718
+
 Of the kit, the arduino, HC-05 bluetooth module, motor controller, motors and wheels were used. Additional custon 3D-printed parts were used for a two piece top cover and for attaching a camera, front light and a laser pointer. The 3D-printed parts are available on Thingiverse at:
+
 I used a Microsoft 12000mAh USB power pack to power the droid because it allows standby time up to a week and enough power for all the parts. The camera is turned on and off by a relay and can be any camera, for example a FPV transmitter, a WiFi camera or a Raspberry Pi with camera. I am also working on a support for Adafruit serial JPEG camera module, to allow low power snapshots over the Bluetooth control connection. The battery pack seems to power off after about three hours, so I attached a GPIO-pin in parallel of the button on it so Arduino can keep it awake by "pressing" the button once a hour.
+
 At the moment the wiring is described in the firmware source code, but I plan to make a graphical schematic when the project is finished.
 
 Software
