@@ -1,5 +1,5 @@
 //
-// Cat Rover 2 firmware (VC0706 camera version)
+// Cat Rover 2 firmware
 // Copyright (C) 2016 Jussi Salin <salinjus@gmail.com>
 //
 // This program is free software: you can redistribute it and/or modify
@@ -40,32 +40,25 @@
 // Connect light LED(s) + to LINEFOLLOWER 2
 // Connect laser diode + to LINEFOLLOWER 3
 // Connect buzzer's + to LINEFOLLOWER 4
-// Connect serial camera's TX to INFRARED S
-// Connect serial camera's RX to LINEFOLLOWER 1
+// Connect OV528 camera's TX to INFRARED S
+// Connect OV528 camera's RX to LINEFOLLOWER 1
 //
-// This Arduino project requires LowPower library available on GitHub.
+// This Arduino project requires LowPower library available on github.
 // Alternatively you can undefine USE_POWERDOWN.
 //
-// This project also supports Adafruit_VC0706 serial camera library
-// also available on GitHub. Can be disabled by undefining
-// USE_SERIAL_CAMERA.
 
 // Major compile time flags
 //#define USE_POWERDOWN 1     // Use power saving code (does not work with PSU_WAKE)
 #define DEBUG 1               // You need extra UART or SoftwareSerial for printing debug messages, if enabled
 //#define LOW_FREQUENCY 1     // Lower the clock divider to save power (limits maximum software baud rates)
 #define USE_PSU_WAKE 1        // Create button presses to keep USB battery pack turned on
-#define USE_SERIAL_CAMERA 1   // Use Adafruit VC0706 serial camera
 
 // Include needed headers
 #include <SoftwareSerial.h>
 #ifdef USE_POWERDOWN
 #include <LowPower.h>
 #endif
-#ifdef USE_SERIAL_CAMERA
-#include <Adafruit_VC0706.h>                                                                                                                      
 #include <SPI.h>
-#endif
 
 // Analog values for different speeds in turning and moving situations
 #define LIGHT_BRIGHTNESS 153
@@ -96,6 +89,18 @@ bool light_state = false;
 #define PSU_WAKE_DURATION 100         // ms to keep the button pressed
 unsigned long last_psu_wake = 0;      // ms since last press (begin from 0)
 
+// OV528 camera module related variables
+#define PIC_PKT_LEN    64             // can be 128, but 64 is size of UART buffer the data is passed to 
+#define PIC_FMT_480P   7              // 640x480
+#define PIC_FMT_240P   5              // 320x240
+#define PIC_FMT_128P   3              // 160x128
+#define PIC_FMT_64P    1              // 80x64
+#define CAM_ADDR       0
+#define PIC_FMT        PIC_FMT_240P
+unsigned long picTotalLen = 0;
+const byte cameraAddr = (CAM_ADDR << 5);
+bool first_photo = true;
+
 // Global variables
 String cmd = "";                      // Collect received characters here to finally have a full command
 int amount = 100;                     // How long duration to move by default
@@ -105,16 +110,13 @@ SoftwareSerial mySerial(4, 3);        // RX, TX pins for second serial port
 SoftwareSerial mySerial2(11, A0);     // RX, TX pins for third serial port
 
 // Serial ports
-#define CAM_SERIAL mySerial2    // Serial port for camera module
+#define CAM_SERIAL mySerial2    // Serial port for OV528 camera module
 #define BT_SERIAL mySerial      // Serial port for HC-05 bluetooth module
 #define DEBUG_SERIAL Serial     // Serial port for debug messages, if debugging is enabled
-#define BT_BPS 115200           // Can be 1200 to 115200
+#define CAM_BPS 9600            // Can be 9600 to 115200
+#define BT_BPS 115200           // Can be 1200 to 115200, 230400, 460800, 921600 or 1382400
 #define DEBUG_BPS 38400         // Can be anything your terminal supports
 
-// Serial camera
-#ifdef USE_SERIAL_CAMERA
-Adafruit_VC0706 cam = Adafruit_VC0706(&CAM_SERIAL);
-#endif
 
 /**
  * Debug message printing code
@@ -135,6 +137,9 @@ void debug(String msg)
  */
 void setup()
 {
+  // Start serial connection to the camera module
+  CAM_SERIAL.begin(CAM_BPS);
+
   // Start serial connection for debugging information
 #ifdef DEBUG
   DEBUG_SERIAL.begin(DEBUG_BPS);
@@ -168,18 +173,6 @@ void setup()
   BT_SERIAL.begin(BT_BPS);
 
   debug("Cat Rover 2.1 Arduino firmware booted up.");
-
-#ifdef USE_SERIAL_CAMERA
-  if (cam.begin())
-  {
-    debug("Camera found");
-    cam.setImageSize(VC0706_160x120);
-  }
-  else
-  {
-    debug("Camera not found!");
-  }
-#endif
 }
 
 #ifdef USE_POWERDOWN
@@ -442,33 +435,203 @@ void laser_off()
   debug("Turning off laser");
 }
 
-/**
- * Take a photo using serial camera module and send it to bluetooth serial port
- */
 void photo()
 {
-#ifdef USE_SERIAL_CAMERA
-  if (!cam.takePicture())
-  {                                                                                                                                               
-    debug("Failed to take a photo");                                                                                                              
-    return;                                                                                                                                       
-  }     
-
-  debug("Took a photo, sending to bluetooth");
-  uint16_t data_left = cam.frameLength();
-  while(data_left > 0)
+  if (first_photo == true)
   {
-    uint8_t read_amount = min(32, data_left); // TODO: try 64
-    uint8_t *buf = cam.readPicture(read_amount);
-    BT_SERIAL.write(buf, read_amount);
-    data_left -= read_amount;
+    initialize();
+    preCapture();
+    first_photo = false;
   }
+  Capture();
+  GetData();
+}
+
+/**
+ * Initialize camera
+ */
+void initialize()
+{   
+  char cmd[] = {0xaa,0x0d|cameraAddr,0x00,0x00,0x00,0x00} ;  
+  unsigned char resp[6];
+
+  debug("Initializing camera...");
+  
+  while (1) 
+  {
+    sendCmd(cmd,6);
+    if (readBytes((char *)resp, 6,1000) != 6) continue;
+    if (resp[0] == 0xaa && resp[1] == (0x0e | cameraAddr) && resp[2] == 0x0d && resp[4] == 0 && resp[5] == 0) 
+    {
+      if (readBytes((char *)resp, 6, 500) != 6) continue; 
+      if (resp[0] == 0xaa && resp[1] == (0x0d | cameraAddr) && resp[2] == 0 && resp[3] == 0 && resp[4] == 0 && resp[5] == 0) break; 
+    }
+  }  
+  cmd[1] = 0x0e | cameraAddr;
+  cmd[2] = 0x0d;
+  sendCmd(cmd, 6);
+}
+
+/**
+ * Pre capture code for camera, run between initialize() and first Capture()
+ */
+void preCapture()
+{
+  debug("Sending pre-capture to camera...");
+  
+  char cmd[] = { 0xaa, 0x01|cameraAddr, 0x00, 0x07, 0x00, PIC_FMT };  
+  unsigned char resp[6]; 
+  
+  while (1)
+  {
+    clearRxBuf();
+    sendCmd(cmd, 6);
+    if (readBytes((char *)resp, 6, 100) != 6) continue; 
+    if (resp[0] == 0xaa && resp[1] == (0x0e | cameraAddr) && resp[2] == 0x01 && resp[4] == 0 && resp[5] == 0) break; 
+  }
+}
+
+/**
+ * Send capture command to camera
+ */
+void Capture()
+{
+  debug("Sending capture command to camera...");
+  
+  char cmd[] = { 0xaa, 0x06|cameraAddr, 0x08, PIC_PKT_LEN & 0xff, (PIC_PKT_LEN>>8) & 0xff ,0}; 
+  unsigned char resp[6];
+
+  while (1)
+  {
+    clearRxBuf();
+    sendCmd(cmd, 6);
+    if (readBytes((char *)resp, 6, 100) != 6) continue;
+    if (resp[0] == 0xaa && resp[1] == (0x0e | cameraAddr) && resp[2] == 0x06 && resp[4] == 0 && resp[5] == 0) break; 
+  }
+  cmd[1] = 0x05 | cameraAddr;
+  cmd[2] = 0;
+  cmd[3] = 0;
+  cmd[4] = 0;
+  cmd[5] = 0; 
+  while (1)
+  {
+    clearRxBuf();
+    sendCmd(cmd, 6);
+    if (readBytes((char *)resp, 6, 100) != 6) continue;
+    if (resp[0] == 0xaa && resp[1] == (0x0e | cameraAddr) && resp[2] == 0x05 && resp[4] == 0 && resp[5] == 0) break;
+  }
+  cmd[1] = 0x04 | cameraAddr;
+  cmd[2] = 0x1;
+  while (1) 
+  {
+    clearRxBuf();
+    sendCmd(cmd, 6);
+    if (readBytes((char *)resp, 6, 100) != 6) continue;
+    if (resp[0] == 0xaa && resp[1] == (0x0e | cameraAddr) && resp[2] == 0x04 && resp[4] == 0 && resp[5] == 0)
+    {
+      if (readBytes((char *)resp, 6, 1000) != 6)
+      {
+        continue;
+      }
+      if (resp[0] == 0xaa && resp[1] == (0x0a | cameraAddr) && resp[2] == 0x01)
+      {
+        picTotalLen = (resp[3]) | (resp[4] << 8) | (resp[5] << 16); 
+        break;
+      }
+    }
+  }
+}
+
+/**
+ * Get data from camera module after Capture(). Sends the raw data (JPEG) to Bluetooth serial port also.
+ */
+void GetData()
+{
+  debug("Receiving data from camera and passing to bluetooth...");
+  
+  unsigned int pktCnt = (picTotalLen) / (PIC_PKT_LEN - 6); 
+  if ((picTotalLen % (PIC_PKT_LEN-6)) != 0) pktCnt += 1;
+  
+  char cmd[] = { 0xaa, 0x0e | cameraAddr, 0x00, 0x00, 0x00, 0x00 };  
+  unsigned char pkt[PIC_PKT_LEN];
+  
+  for (unsigned int i = 0; i < pktCnt; i++)
+  {
+    cmd[4] = i & 0xff;
+    cmd[5] = (i >> 8) & 0xff;
+    
+    int retry_cnt = 0;
+  retry:
+    delay(10);
+    clearRxBuf(); 
+    sendCmd(cmd, 6); 
+    uint16_t cnt = readBytes((char *)pkt, PIC_PKT_LEN, 200);
+    
+    unsigned char sum = 0; 
+    for (int y = 0; y < cnt - 2; y++)
+    {
+      sum += pkt[y];
+    }
+    if (sum != pkt[cnt-2])
+    {
+      debug("CRC error");
+      if (++retry_cnt < 100) goto retry;
+      else
+      {
+        debug("Failed");
+        break;
+      }
+    }
+
+    BT_SERIAL.write((const uint8_t *)&pkt[4], cnt-6);
+  }
+  cmd[4] = 0xf0;
+  cmd[5] = 0xf0; 
+  sendCmd(cmd, 6);
 
   // Send four bytes "EOF\n" finally to signal end of JPEG - highly improbable to occur naturally in JPEG data
   BT_SERIAL.println("EOF");
+  
+  debug("Done");
+}
 
-  debug("Photo sent");
-#else
-  debug("Serial camera support not enabled");
-#endif
+/**
+ * Used by camera code
+ */
+void clearRxBuf()
+{
+  while (CAM_SERIAL.available()) 
+  {
+    CAM_SERIAL.read(); 
+  }
+}
+
+/**
+ * Used by camera code
+ */
+void sendCmd(char cmd[], int cmd_len)
+{
+  for (char i = 0; i < cmd_len; i++) CAM_SERIAL.write(cmd[i]); 
+}
+
+/**
+ * Used by camera code
+ */
+int readBytes(char *dest, int len, unsigned int timeout)
+{
+  int read_len = 0;
+  unsigned long t = millis();
+  while (read_len < len)
+  {
+    while (CAM_SERIAL.available()<1)
+    {
+      if ((millis() - t) > timeout)
+      {
+        return read_len;
+      }
+    }
+    *(dest+read_len) = CAM_SERIAL.read();
+    read_len++;
+  }
+  return read_len;
 }
