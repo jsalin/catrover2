@@ -1,4 +1,3 @@
-//
 // Cat Rover 2 firmware
 // Copyright (C) 2016 Jussi Salin <salinjus@gmail.com>
 //
@@ -14,7 +13,9 @@
 //
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
-//
+
+
+// The code is designed for Arduino Pro Mini board.
 //
 // Defined variables:
 // ENA, ENB, MOT1-4 are pins for LM387 motor controller
@@ -41,11 +42,11 @@
 // Connect laser diode + to LINEFOLLOWER 3
 // Connect buzzer's + to LINEFOLLOWER 4
 // Connect OV528 camera's TX to INFRARED S
-// Connect OV528 camera's RX to LINEFOLLOWER 1
+// Connect OV528 camera's RX to A7 (add pin header)
 //
 // This Arduino project requires LowPower library available on github.
 // Alternatively you can undefine USE_POWERDOWN.
-//
+
 
 // Major compile time flags
 //#define USE_POWERDOWN 1     // Use power saving code (does not work with PSU_WAKE)
@@ -107,15 +108,15 @@ int amount = 100;                     // How long duration to move by default
 int start_speed = 63;                 // Default starting speed of movement (0-255)
 int move_speed = 127;                 // Default moving speed after acceleration (0-255)
 SoftwareSerial mySerial(4, 3);        // RX, TX pins for second serial port
-SoftwareSerial mySerial2(11, A0);     // RX, TX pins for third serial port
+SoftwareSerial mySerial2(11, A7);     // RX, TX pins for third serial port
 
 // Serial ports
 #define CAM_SERIAL mySerial2    // Serial port for OV528 camera module
 #define BT_SERIAL mySerial      // Serial port for HC-05 bluetooth module
 #define DEBUG_SERIAL Serial     // Serial port for debug messages, if debugging is enabled
-#define CAM_BPS 9600            // Can be 9600 to 115200
+#define CAM_BPS 38400           // Can be 9600 to 115200
 #define BT_BPS 115200           // Can be 1200 to 115200, 230400, 460800, 921600 or 1382400
-#define DEBUG_BPS 38400         // Can be anything your terminal supports
+#define DEBUG_BPS 115200        // Can be anything your terminal supports
 
 
 /**

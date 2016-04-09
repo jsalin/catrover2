@@ -72,17 +72,20 @@ port.on('data', function(data) {
   // Append the received data to a buffer
   var old_data = received_data;
   received_data = Buffer.concat([old_data, data]);
-  console.log(data.length + " bytes received");
-
+  process.stdout.write("Received " + received_data.length + " bytes\r");
+  
   // "EOF\n" marks end of full file
-  if ((received_data[received_data.length-4] == 'E') &&
-      (received_data[received_data.length-3] == 'O') &&
-      (received_data[received_data.length-2] == 'F') &&
-      (received_data[received_data.length-1] == '\n'))
+  if ((received_data[received_data.length-4] == 69) &&
+      (received_data[received_data.length-3] == 79) &&
+      (received_data[received_data.length-2] == 70) &&
+      (received_data[received_data.length-1] == 10))
   {
-    console.log("EOF detected");
+    process.stdout.write("\n");
+    console.log("End of photo");
+    // Set the received data as new last_jpeg and start new empty received_data
     last_jpeg = new Buffer(received_data.length-4);
-    received_data.copy(last_jpeg, 0, 0, last_jpeg.length);
+    received_data.copy(last_jpeg, 0, 0, received_data.length-4 /*last_jpeg.length*/);
+    received_data = new Buffer(0);
   }
 });
 

@@ -97,19 +97,21 @@ bool light_state = false;
 unsigned long last_psu_wake = 0;      // ms since last press (begin from 0)
 
 // Global variables
+#define SERIAL_CLASS SoftwareSerial   // NewSoftSerial or SoftwareSerial
 String cmd = "";                      // Collect received characters here to finally have a full command
 int amount = 100;                     // How long duration to move by default
 int start_speed = 63;                 // Default starting speed of movement (0-255)
 int move_speed = 127;                 // Default moving speed after acceleration (0-255)
-SoftwareSerial mySerial(4, 3);        // RX, TX pins for second serial port
-SoftwareSerial mySerial2(11, A0);     // RX, TX pins for third serial port
+SERIAL_CLASS mySerial(4, 3);          // RX, TX pins for second serial port (bluetooth)
+SERIAL_CLASS mySerial2(11, A0);       // RX, TX pins for third serial port (serial camera)
 
 // Serial ports
 #define CAM_SERIAL mySerial2    // Serial port for camera module
 #define BT_SERIAL mySerial      // Serial port for HC-05 bluetooth module
 #define DEBUG_SERIAL Serial     // Serial port for debug messages, if debugging is enabled
-#define BT_BPS 115200           // Can be 1200 to 115200
-#define DEBUG_BPS 38400         // Can be anything your terminal supports
+#define CAM_BPS 38400           // Serial camera bps (some modules have 9600 default, some 38400, 115200 always maximum if set)
+#define BT_BPS 115200           // Same as set in BT module. Can be very low, but use CAM_BPS or higher if using serial camera.
+#define DEBUG_BPS 115200        // Can be anything your terminal supports
 
 // Serial camera
 #ifdef USE_SERIAL_CAMERA
@@ -170,10 +172,9 @@ void setup()
   debug("Cat Rover 2.1 Arduino firmware booted up.");
 
 #ifdef USE_SERIAL_CAMERA
-  if (cam.begin())
+  if (cam.begin(CAM_BPS))
   {
     debug("Camera found");
-    cam.setImageSize(VC0706_160x120);
   }
   else
   {
@@ -196,11 +197,14 @@ void wakeUp()
 void loop()
 {
   // call command() when cmd contains a new fully received line
-  while (BT_SERIAL.available() > 0)
+  char chr = 0;
+  if (BT_SERIAL.available() > 0) chr = BT_SERIAL.read();
+  else if (DEBUG_SERIAL.available() > 0) chr = DEBUG_SERIAL.read();
+  if (chr > 0)
   {
-    char chr = BT_SERIAL.read();
 #ifdef ECHO
     BT_SERIAL.print(chr);
+    DEBUG_SERIAL.print(chr);
 #endif
     if ((chr == '\n') || (chr == '\r'))
     {
@@ -254,6 +258,7 @@ void command()
 {
   cmd.toLowerCase();
   cmd.trim();
+  if (cmd == "") return;
   
   debug("Received command: " + cmd);
 
@@ -448,6 +453,15 @@ void laser_off()
 void photo()
 {
 #ifdef USE_SERIAL_CAMERA
+  /* For some reason setting image size doesn't work and always defaults to 320x240
+  cam.setImageSize(VC0706_160x120);
+  uint8_t imgsize = cam.getImageSize();
+  if (imgsize == VC0706_640x480) debug("640x480");
+  else if (imgsize == VC0706_320x240) debug("320x240");
+  else if (imgsize == VC0706_160x120) debug("160x120");
+  else debug("Unknown image size!");
+  */
+  
   if (!cam.takePicture())
   {                                                                                                                                               
     debug("Failed to take a photo");                                                                                                              
@@ -458,14 +472,17 @@ void photo()
   uint16_t data_left = cam.frameLength();
   while(data_left > 0)
   {
-    uint8_t read_amount = min(32, data_left); // TODO: try 64
+    uint8_t read_amount = min(64, data_left); // TODO: try 64
     uint8_t *buf = cam.readPicture(read_amount);
     BT_SERIAL.write(buf, read_amount);
     data_left -= read_amount;
   }
 
   // Send four bytes "EOF\n" finally to signal end of JPEG - highly improbable to occur naturally in JPEG data
-  BT_SERIAL.println("EOF");
+  BT_SERIAL.print("EOF\n");
+
+  // Need this in order to take a new photo later
+  cam.resumeVideo();
 
   debug("Photo sent");
 #else
