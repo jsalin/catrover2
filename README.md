@@ -33,4 +33,4 @@ On a server with bluetooth and Linux, located at the area where the droid is use
 Project status
 --------------
 
-Only the serial camera and graphical schematic are missing. The droid is fully operating and working reliably remotely.
+The droid is fully operating and working reliably remotely. Only some functionality is missing anymore and they are listed on the TODO file.

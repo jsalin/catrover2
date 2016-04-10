@@ -1,0 +1,10 @@
+* Add support for receiving audio samples from bluetooth and playing them either with fast timer PWM on IO pin or using DS2408 over the last free pin 13
+* Test serial camera power saving with a relay board on IO-pin 12
+* Add serial camera support to the web UI
+  * Serial camera enable and disable buttons
+  * When enabled, refresh the jpeg once a second
+  * Send "photo" command after every control
+  * Send "photo" about every 10 seconds otherwise
+  * When disabled, go back to traditional camera refresh mode
+* Add support for capturing sound from mic (over browser) and sending the data to backend
+* Add support to backend which converts the received audio to 8bit raw data and sends to bluetooth

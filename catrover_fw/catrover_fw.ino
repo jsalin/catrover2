@@ -1,4 +1,3 @@
-//
 // Cat Rover 2 firmware (VC0706 camera version)
 // Copyright (C) 2016 Jussi Salin <salinjus@gmail.com>
 //
@@ -14,7 +13,18 @@
 //
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+// **** !!!! WARNING !!!! ****
 //
+// This code uses serial camera in a way not recommended by Adafruit, in
+// order to set higher than default baud rate!
+//
+// It is also required that you modify Adafruit_VC0706.cpp
+// and change args[] of getVersion() from 0x01 to 0x00 and
+// at the return, change "camerabuff" to "camerabuff + 5"!
+//
+// ***************************
+
 //
 // Defined variables:
 // ENA, ENB, MOT1-4 are pins for LM387 motor controller
@@ -23,7 +33,6 @@
 // CAM is pin for enabling camera with a relay (reverse logic)
 // LIGHT is pin for enabling a flashlight style LED
 // LASER is pin for enabling a laser diode that attracts cats
-// HORN is pin for a buzzer
 //
 // Connect by bluetooth module on ULTRASONIC pins and use following commands:
 // amount <n>        Next movement will be this much in ms (time)
@@ -31,17 +40,20 @@
 // right             Turn right
 // forward           Go forward
 // backward          Go backward
-// camera <on/off>   Turn camera on or off to save battery
+// camera <on/off>   Turn cwifi amera on or off to save battery
 // light <on/off>    Turn light on or off
 // laser <on/off>    Turn laser on or off
-// photo             Take and send a photo with OV528 camera
+// photo             Take and send a photo with serial camera
 //
-// Connect camera relay board control pin to LINEFOLLOWER 1
+// Connect wifi camera relay board control pin to LINEFOLLOWER 1
 // Connect light LED(s) + to LINEFOLLOWER 2
 // Connect laser diode + to LINEFOLLOWER 3
 // Connect buzzer's + to LINEFOLLOWER 4
 // Connect serial camera's TX to INFRARED S
-// Connect serial camera's RX to LINEFOLLOWER 1
+// Connect serial camera's RX to 2 (add pin header)
+// Connect serial camera relay control to 12 (add pin header)
+//
+// Unused IO-pins on Mini at the moment: only 13
 //
 // This Arduino project requires LowPower library available on GitHub.
 // Alternatively you can undefine USE_POWERDOWN.
@@ -83,9 +95,10 @@
 #define MOT4  6
 
 // Other outputs
-#define CAM   A0
-#define LIGHT A1
-#define LASER A2
+#define CAM   A0      // for enabling wifi camera
+#define LIGHT A1      // for enabling front light
+#define LASER A2      // for enabling laser pointer
+#define SERIAL_CAM 12 // for enabling serial camera
 bool camera_state = false;
 bool light_state = false;
 
@@ -103,15 +116,26 @@ int amount = 100;                     // How long duration to move by default
 int start_speed = 63;                 // Default starting speed of movement (0-255)
 int move_speed = 127;                 // Default moving speed after acceleration (0-255)
 SERIAL_CLASS mySerial(4, 3);          // RX, TX pins for second serial port (bluetooth)
-SERIAL_CLASS mySerial2(11, A0);       // RX, TX pins for third serial port (serial camera)
+SERIAL_CLASS mySerial2(11, 2);        // RX, TX pins for third serial port (serial camera)
 
 // Serial ports
 #define CAM_SERIAL mySerial2    // Serial port for camera module
 #define BT_SERIAL mySerial      // Serial port for HC-05 bluetooth module
 #define DEBUG_SERIAL Serial     // Serial port for debug messages, if debugging is enabled
-#define CAM_BPS 38400           // Serial camera bps (some modules have 9600 default, some 38400, 115200 always maximum if set)
+#define CAM_BPS 57600           // Change camera to this baud rate on fly (read warning at beginning)
 #define BT_BPS 115200           // Same as set in BT module. Can be very low, but use CAM_BPS or higher if using serial camera.
 #define DEBUG_BPS 115200        // Can be anything your terminal supports
+
+// Different baud rates the serial camera can have
+#define CAM_RATES 5
+const long cam_rate[CAM_RATES] = {38400, 115200, 57600, 19200, 9600};
+
+#define CAM_POWER_DELAY 100     // How long to wait before powering on or off the serial camera
+
+// Some camera commands we send past Adafruit's library
+#define CAM_160x120 "\x56\x00\x31\x05\x04\x01\x00\x19\x22"
+#define CAM_640x480 "\x56\x00\x31\x05\x04\x01\x00\x19\x00"
+#define CAM_POWERSAVE "\x56\x00\x3E\x03\x00\x01"
 
 // Serial camera
 #ifdef USE_SERIAL_CAMERA
@@ -122,9 +146,10 @@ Adafruit_VC0706 cam = Adafruit_VC0706(&CAM_SERIAL);
  * Debug message printing code
  */
 #ifdef DEBUG
-void debug(String msg)
+void debug(String msg, bool newline=true)
 {
-  DEBUG_SERIAL.println(msg);
+  if (newline == true) msg += "\n\r";
+  DEBUG_SERIAL.print(msg);
 }
 #else
 void debug(String msg)
@@ -169,17 +194,85 @@ void setup()
   // Start bluetooth serial connection
   BT_SERIAL.begin(BT_BPS);
 
-  debug("Cat Rover 2.1 Arduino firmware booted up.");
+  // Start serial camera
+  init_camera();
+
+  debug("Cat Rover 2 firmware booted up.");
+}
 
 #ifdef USE_SERIAL_CAMERA
-  if (cam.begin(CAM_BPS))
+/**
+ * Set camera powersave mode on or off
+ * (doesn't exist in Adafruit library)
+ */
+void camera_powersave(boolean state)
+{
+  CAM_SERIAL.write(CAM_POWERSAVE);
+  if (state == true)
+    CAM_SERIAL.write("\x01");
+  else
+    CAM_SERIAL.write("\x00");
+  delay(10);
+  CAM_SERIAL.flush();
+}
+
+/**
+ * Set camera resolution (this implementation works)
+ */
+void camera_resolution(int height)
+{
+  if (height == 120) CAM_SERIAL.write(CAM_160x120);
+  if (height == 480) CAM_SERIAL.write(CAM_640x480);
+  delay(10);
+  CAM_SERIAL.flush();
+}
+#endif
+
+/**
+ * Clever serial camera initialization code.
+ * First determine the default baud rate and then change to the baud rate wanted.
+ */
+void init_camera()
+{
+#ifdef USE_SERIAL_CAMERA
+  pinMode(SERIAL_CAM, OUTPUT);
+  digitalWrite(SERIAL_CAM, HIGH);
+  delay(CAM_POWER_DELAY);
+  
+  // Detect default baud rate of the camera
+  bool camera_found = false;
+  for (int i=0; i<CAM_RATES; i++)
   {
-    debug("Camera found");
+    CAM_SERIAL.begin(cam_rate[i]);
+    if (cam.getVersion() != 0)
+    {
+      camera_found = true;
+      break;
+    }
+  }
+  if (camera_found == false)
+  {
+    debug("Camera not found at any baud rate!");
   }
   else
   {
-    debug("Camera not found!");
+    debug("Camera found");
+    //photo_size();
+    debug("Setting new baud rate");
+    if (CAM_BPS == 115200) cam.setBaud115200();
+    else if (CAM_BPS == 57600) cam.setBaud57600();
+    else if (CAM_BPS == 38400) cam.setBaud38400();
+    else if (CAM_BPS == 19200) cam.setBaud19200();
+    else if (CAM_BPS == 9600) cam.setBaud9600();
+    CAM_SERIAL.begin(CAM_BPS);
+    if (cam.getVersion() != 0)
+      debug("Camera still works!");
+    else
+      debug("Baud setting failed, camera not working");
   }
+  
+#else
+  debug("Serial camera support disabled");
 #endif
 }
 
@@ -447,44 +540,65 @@ void laser_off()
   debug("Turning off laser");
 }
 
+#ifdef USE_SERIAL_CAMERA
+/** 
+ * Set resolution used with serial camera.
+ * For some reason setting image size doesn't necessarily and then
+ * defaults to 320x240.
+ * For some reason this also resets default baud rate, so call before
+ * changing from camera's default baud rate.
+ */
+void photo_size()
+{
+  cam.setImageSize(VC0706_160x120);
+  uint8_t imgsize = cam.getImageSize();
+  if (imgsize == VC0706_640x480) debug("Image size is set to 640x480");
+  else if (imgsize == VC0706_320x240) debug("Image size is set to 320x240");
+  else if (imgsize == VC0706_160x120) debug("Image size is set to 160x120");
+  else debug("Image size is unknown!");
+}
+#endif
+
 /**
  * Take a photo using serial camera module and send it to bluetooth serial port
  */
 void photo()
 {
 #ifdef USE_SERIAL_CAMERA
-  /* For some reason setting image size doesn't work and always defaults to 320x240
-  cam.setImageSize(VC0706_160x120);
-  uint8_t imgsize = cam.getImageSize();
-  if (imgsize == VC0706_640x480) debug("640x480");
-  else if (imgsize == VC0706_320x240) debug("320x240");
-  else if (imgsize == VC0706_160x120) debug("160x120");
-  else debug("Unknown image size!");
-  */
-  
+  // Take a photo
+  digitalWrite(SERIAL_CAM, HIGH);
+  delay(CAM_POWER_DELAY);
   if (!cam.takePicture())
   {                                                                                                                                               
     debug("Failed to take a photo");                                                                                                              
     return;                                                                                                                                       
   }     
 
-  debug("Took a photo, sending to bluetooth");
+  // Receive the photo and send to bluetooth
+  debug("Took a photo, transferring", false);
+  unsigned long begin_time = millis();
   uint16_t data_left = cam.frameLength();
   while(data_left > 0)
   {
-    uint8_t read_amount = min(64, data_left); // TODO: try 64
+    uint8_t read_amount = min(64, data_left); // 64 is good block size
     uint8_t *buf = cam.readPicture(read_amount);
     BT_SERIAL.write(buf, read_amount);
     data_left -= read_amount;
+    debug(".", false);
   }
 
   // Send four bytes "EOF\n" finally to signal end of JPEG - highly improbable to occur naturally in JPEG data
   BT_SERIAL.print("EOF\n");
+  String total_time = "\nPhoto sent in ";
+  total_time += (millis() - begin_time);
+  total_time += "ms";
+  debug(total_time);
 
-  // Need this in order to take a new photo later
+  // Have to resume video for some reason, so the new photo is not the same as last photo
   cam.resumeVideo();
+  delay(CAM_POWER_DELAY);
+  digitalWrite(SERIAL_CAM, LOW);
 
-  debug("Photo sent");
 #else
   debug("Serial camera support not enabled");
 #endif
