@@ -145,6 +145,30 @@ app.set('views', './views'); // specify the views directory
 app.set('view engine', 'ntl'); // register the template engine
 
 /**
+ * Received POST that has recorded audio from HTML5 for playback on droid
+ */
+app.post('/sound', function (req, res) {
+  console.log("Received audio data:");
+  console.log(req.body.base64);
+  console.log("Writing audio data to file...");
+  audio_data = new Buffer(req.body.base64, 'base64');
+  var wstream = fs.createWriteStream("/tmp/sound");
+  wstream.write(audio_data);
+  wstream.end();
+  console.log("Converting audio data...");
+  exec('sox /tmp/sound /tmp/sound.raw', function(err, data) {
+    if (err) console.log(err);
+    console.log("Reading converted data...");
+    fs.readFile("/tmp/sound.raw", function(err, data) {
+      if (err) console.log(err);
+      command("sound");
+      console.log("Sending converted data...");
+      port.write(data);
+    });
+  });
+});
+
+/**
  * Express GET event for loading the latest camera photo
  */
 app.get('/camera.jpg', function (req, res) {

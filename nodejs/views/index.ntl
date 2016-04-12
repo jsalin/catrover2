@@ -3,7 +3,12 @@
 
 <head>
   <title>Cat Rover</title>
+
+  <!-- Uses Francium-voice javascript library by subins2000, available on GitHub -->
+
   <script src="jquery-2.1.4.min.js"></script>
+  <script src="Fr.voice.min.js"></script>
+
   <link rel="stylesheet" href="style.css"/>
 </head>
 
@@ -11,19 +16,87 @@
 
 <script>
 
-// Quick wrapper function for making motor control API calls
+/**
+ * Global variables
+ */
+var serial_camera = false;
+var recording = false;
+
+/**
+ * Control serial camera on
+ */
+function serial_camera_on() {
+  serial_camera = true;
+}
+
+/**
+ * Control serial camera off
+ */
+function serial_camera_off() {
+  serial_camera = false;
+}
+
+/**
+ * Start recording microphone
+ */
+function start_record() {
+  if (recording == true) return;
+  recording = true;
+  Fr.voice.record(false, function(){
+    recording = false;
+    alert('Record not working');
+  });
+}
+
+/**
+ * Stop recording microphone and send for playback
+ */
+function stop_record() {
+  if (recording == false) return;
+  Fr.voice.stop();
+  Fr.voice.export(function(base64){
+    console.log(base64);
+    $.post("sound", {"audio" : base64}, function(){});
+  }, "base64");
+}
+
+/**
+ * Quick wrapper function for making motor control API calls
+ */
 function move(amount, dir) {
   $.get("move", {amount: amount, dir: dir});
+  //if (serial_camera == true) $.get("photo");
 }
 
-// Refresh webcam image, in case the stream starts or stops
+/**
+ * Command the droid to take a serial camera photo (don't flood it though)
+ */
+function refresh_photo() {
+  if (serial_camera == true) $.get("photo");
+}
+setInterval("refresh_photo()", 10000);
+
+/** 
+ * Refresh webcam image ocassionally, in case the stream starts or stops
+ * Also refresh serial camera image continuously in case it is enabled
+ */
 function refresh_webcam() {
-  $("#webcam").attr("src", "http://#rover_ip#:8081/?action=stream");
-  //$("webcam").attr("src", "/camera.jpg");
+  if (serial_camera == false)
+  {
+    $("#webcam").attr("src", "http://#rover_ip#:8081/?action=stream");
+    setTimeout("refresh_webcam()", 5000);
+  }
+  else
+  {
+    $("#webcam").attr("src", "/camera.jpg");
+    setTimeout("refresh_webcam()", 1000);
+  }
 }
-setInterval("refresh_webcam()", 5000);
+setTimeout("refresh_webcam()", 5000);
 
-// Things to do after the page has finished loading
+/**
+ * Things to do after the page has finished loading
+ */
 $(function() {
   // Keyboard handler
   $('html').keydown(function(e) {
@@ -35,6 +108,12 @@ $(function() {
     else if (e.which == 37) move(100, 'left');
     // right arrow
     else if (e.which == 39) move(100, 'right');
+    // R key
+    else if (e.which == 82) start_recording();
+  });
+  $('html').keyup(function(e) {
+    // R key
+    if (e.which == 82) stop_recording();
   });
 });
 
@@ -43,7 +122,7 @@ $(function() {
 <div>
 
   <div style="float:left" id="cornered">
-    <img src="" alt="" id="webcam" onerror="this.style.opacity=0" onload="this.style.opacity=1" style="width:640px;height:360px"/>
+    <img src="" alt="" id="webcam" onerror="this.style.opacity=0" onload="this.style.opacity=1" style="max-width:640px;max-height:360px"/>
   </div>
 
   <div style="float:left;width:328px" id="cornered">
@@ -75,13 +154,13 @@ $(function() {
     <img src="images/backward1.png" onclick="move(200, 'backward')"/><br/>
     <img src="images/backward2.png" onclick="move(800, 'backward')"/><br/>
 
-    <img src="images/camera_on.png" onclick="$.get('camera_on')"/>
+    <img src="images/camera_on.png" onclick="serial_camera_off(); $.get('camera_on')"/>
     <img src="images/camera_off.png" onclick="$.get('camera_off')"/>
     <img src="images/nothing.png"/>
     <img src="images/backward3.png" onclick="move(1200, 'backward')"/>
     <img src="images/nothing.png"/>
-    <img src="images/nothing.png"/>
-    <img src="images/nothing.png"/><br/>
+    <img src="images/serial_camera_on.png" onclick="$.get('camera_off'); serial_camera_on()"/>
+    <img src="images/serial_camera_off.png" onclick="serial_camera_off()"/><br/>
     <a href="http://#rover_ip#:8000/catrover.m3u">Listen</a> to audio when camera enabled<br/>
     <audio controls autoplay src="http://#rover_ip#:8000/catrover"></audio>
     </center>
