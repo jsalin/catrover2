@@ -116,7 +116,9 @@ int amount = 100;                     // How long duration to move by default
 int start_speed = 63;                 // Default starting speed of movement (0-255)
 int move_speed = 127;                 // Default moving speed after acceleration (0-255)
 SERIAL_CLASS mySerial(4, 3);          // RX, TX pins for second serial port (bluetooth)
+#ifdef USE_SERIAL_CAMERA
 SERIAL_CLASS mySerial2(11, 2);        // RX, TX pins for third serial port (serial camera)
+#endif
 
 // Serial ports
 #define CAM_SERIAL mySerial2    // Serial port for camera module
@@ -145,17 +147,13 @@ Adafruit_VC0706 cam = Adafruit_VC0706(&CAM_SERIAL);
 /**
  * Debug message printing code
  */
-#ifdef DEBUG
 void debug(String msg, bool newline=true)
 {
   if (newline == true) msg += "\n\r";
+#ifdef DEBUG
   DEBUG_SERIAL.print(msg);
-}
-#else
-void debug(String msg)
-{
-}
 #endif
+}
 
 /*
  * Setup code, ran at start up of Arduino
@@ -190,7 +188,7 @@ void setup()
   pinMode(PSU_WAKE, OUTPUT);
   digitalWrite(PSU_WAKE, LOW);
 #endif
-
+  
   // Start bluetooth serial connection
   BT_SERIAL.begin(BT_BPS);
 
@@ -244,6 +242,7 @@ void init_camera()
   for (int i=0; i<CAM_RATES; i++)
   {
     CAM_SERIAL.begin(cam_rate[i]);
+    CAM_SERIAL.listen();
     if (cam.getVersion() != 0)
     {
       camera_found = true;
@@ -270,7 +269,7 @@ void init_camera()
     else
       debug("Baud setting failed, camera not working");
   }
-  
+  BT_SERIAL.listen();
 #else
   debug("Serial camera support disabled");
 #endif
@@ -296,7 +295,7 @@ void loop()
   if (chr > 0)
   {
 #ifdef ECHO
-    BT_SERIAL.print(chr);
+    //BT_SERIAL.print(chr); Don't ever echo to bluetooth because that direction is used for JPEG transfers
     DEBUG_SERIAL.print(chr);
 #endif
     if ((chr == '\n') || (chr == '\r'))
@@ -315,7 +314,7 @@ void loop()
   // Wait ten seconds for a character actively
   for (int i=0; i<10000; i++)
   {
-    if (BT_SERIAL.available() > 0)
+    if ((BT_SERIAL.available() > 0) || (DEBUG_SERIAL.available() > 0))
     {
       received = true;
       break;
@@ -566,15 +565,19 @@ void photo()
 {
 #ifdef USE_SERIAL_CAMERA
   // Take a photo
+  CAM_SERIAL.listen();
   digitalWrite(SERIAL_CAM, HIGH);
   delay(CAM_POWER_DELAY);
   if (!cam.takePicture())
   {                                                                                                                                               
-    debug("Failed to take a photo");                                                                                                              
+    debug("Failed to take a photo");
+    BT_SERIAL.listen();                                                                                                              
     return;                                                                                                                                       
   }     
 
   // Receive the photo and send to bluetooth
+  // No protocol used on bluetooth because it has internal error correction & retransmission
+  // Also, RX works only on one SoftwareSerial a time so we reserve that for the camera
   debug("Took a photo, transferring", false);
   unsigned long begin_time = millis();
   uint16_t data_left = cam.frameLength();
@@ -598,6 +601,7 @@ void photo()
   cam.resumeVideo();
   delay(CAM_POWER_DELAY);
   digitalWrite(SERIAL_CAM, LOW);
+  BT_SERIAL.listen();
 
 #else
   debug("Serial camera support not enabled");

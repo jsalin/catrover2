@@ -30,6 +30,29 @@ Usage
 
 On a server with bluetooth and Linux, located at the area where the droid is used, you need to have nodejs and npm installed. Simply run "npm install" under the nodejs directory and then run "node app.js" to run the web service. Remember to copy config_example.json to config.json and customize it before running the service. To apply the firmware to the Arduino simply use the Arduino IDE to compile and upload the program.
 
+To pair the bluetooth serial port in recent linux distributions using the command line, you need to start bluetoothctl as root and give following commands:
+
+	power on
+	agent on
+	scan on
+	(wait for the device to appear with it's unique bluetooth MAC)
+	scan off
+	pair <MAC that was scanned>
+
+After the pairing, to create an actual serial device that this backend uses, run following command as root:
+
+	rfcomm bind rfcomm0 <The MAC that was scanned before>
+
+I noticed that for some reason the bluetooth system and rfcomm pairing don't fully come up after a reboot, so I added these to /etc/rc.local:
+
+	echo "0b05 17cb" >> /sys/bus/usb/drivers/btusb/new_id
+	modprobe btusb
+	modprobe rfcomm
+	hciconfig hci0 up
+	rfcomm bind rfcomm0 98:D3:32:20:3D:E6
+
+The two hex words are identifier for the bluetooth USB stick that I use and you can see yours using lsusb command.
+
 Project status
 --------------
 

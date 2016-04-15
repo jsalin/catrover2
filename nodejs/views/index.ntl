@@ -84,11 +84,15 @@ function refresh_webcam() {
   if (serial_camera == false)
   {
     $("#webcam").attr("src", "http://#rover_ip#:8081/?action=stream");
+    $("#webcam").attr("width", "640px");
+    $("#webcam").attr("height", "360px");
     setTimeout("refresh_webcam()", 5000);
   }
   else
   {
-    $("#webcam").attr("src", "/camera.jpg");
+    $("#webcam").attr("src", "/camera.jpg?" + new Date().getTime());
+    $("#webcam").attr("width", "480px");
+    $("#webcam").attr("height", "360px");
     setTimeout("refresh_webcam()", 1000);
   }
 }
@@ -109,11 +113,11 @@ $(function() {
     // right arrow
     else if (e.which == 39) move(100, 'right');
     // R key
-    else if (e.which == 82) start_recording();
+    else if (e.which == 82) start_record();
   });
   $('html').keyup(function(e) {
     // R key
-    if (e.which == 82) stop_recording();
+    if (e.which == 82) stop_record();
   });
 });
 
@@ -122,7 +126,7 @@ $(function() {
 <div>
 
   <div style="float:left" id="cornered">
-    <img src="" alt="" id="webcam" onerror="this.style.opacity=0" onload="this.style.opacity=1" style="max-width:640px;max-height:360px"/>
+    <img src="" alt="" id="webcam" onerror="this.style.opacity=0" onload="this.style.opacity=1"/>
   </div>
 
   <div style="float:left;width:328px" id="cornered">
@@ -159,7 +163,7 @@ $(function() {
     <img src="images/nothing.png"/>
     <img src="images/backward3.png" onclick="move(1200, 'backward')"/>
     <img src="images/nothing.png"/>
-    <img src="images/serial_camera_on.png" onclick="$.get('camera_off'); serial_camera_on()"/>
+    <img src="images/serial_camera_on.png" onclick="serial_camera_on()"/>
     <img src="images/serial_camera_off.png" onclick="serial_camera_off()"/><br/>
     <a href="http://#rover_ip#:8000/catrover.m3u">Listen</a> to audio when camera enabled<br/>
     <audio controls autoplay src="http://#rover_ip#:8000/catrover"></audio>

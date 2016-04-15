@@ -39,7 +39,7 @@ var server = http.createServer(app);
 
 // Use SerialPort module for communicating with the droid firmware over bluetooth serial port
 var com = require('serialport');
-var port = new com.SerialPort(config.serialdev, {baudrate: config.serialbaud}/*, false*/);
+var port = new com.SerialPort(config.serialdev, {baudrate: config.serialbaud});
 
 // Serve all static files under www folder, but we can add paths over
 // it to set up some web api functions and dynamic pages
@@ -82,9 +82,10 @@ port.on('data', function(data) {
   {
     process.stdout.write("\n");
     console.log("End of photo");
+    
     // Set the received data as new last_jpeg and start new empty received_data
-    last_jpeg = new Buffer(received_data.length-4);
-    received_data.copy(last_jpeg, 0, 0, received_data.length-4 /*last_jpeg.length*/);
+    last_jpeg = new Buffer(received_data.length - 4);
+    received_data.copy(last_jpeg, 0, 0, received_data.length - 4);
     received_data = new Buffer(0);
   }
 });
@@ -108,9 +109,6 @@ port.on('open', function() {
  */
 port.on('close', function() {
   console.log("Serial port closed");
-  //sleep.sleep(5);
-  //console.log("Trying to open serial port again");
-  //port = new com.SerialPort(config.serialdev, {baudrate: config.serialbaud});
 });
 
 /**
@@ -196,6 +194,14 @@ app.get('/move', function (req, res) {
     command("amount " + amount);
     command(cmd);
   }
+  res.send();
+});
+
+/**
+ * Express GET event for "photo" api call
+ */
+app.get('/photo', function (req, res) {
+  command("photo");
   res.send();
 });
 
