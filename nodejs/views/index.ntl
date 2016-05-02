@@ -7,8 +7,10 @@
   <!-- Uses Francium-voice javascript library by subins2000, available on GitHub -->
 
   <script src="jquery-2.1.4.min.js"></script>
+  <script src="recorder.js"></script>
   <script src="Fr.voice.min.js"></script>
-
+  <script src="js/record.js"></script>
+  
   <link rel="stylesheet" href="style.css"/>
 </head>
 
@@ -74,7 +76,7 @@ function move(amount, dir) {
 function refresh_photo() {
   if (serial_camera == true) $.get("photo");
 }
-setInterval("refresh_photo()", 10000);
+setInterval("refresh_photo()", 1000);
 
 /** 
  * Refresh webcam image ocassionally, in case the stream starts or stops
@@ -96,7 +98,7 @@ function refresh_webcam() {
     setTimeout("refresh_webcam()", 1000);
   }
 }
-setTimeout("refresh_webcam()", 5000);
+setTimeout("refresh_webcam()", 1);
 
 /**
  * Things to do after the page has finished loading

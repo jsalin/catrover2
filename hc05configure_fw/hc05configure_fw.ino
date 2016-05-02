@@ -17,8 +17,9 @@
  *
  * 
  * Available AT commands of HC-05:
- * ´
- * AT+UART=<baudrate>,1,0   Set baud rate by direct value and N-8-1
+ *
+ * AT+UART=<baudrate>,1,0   Set baud rate by direct value and N-8-1.
+ *                          Note that 57600bps is maximum of SoftSerial.
  * AT+NAME=<short text>     Set name for discovery mode list of other devices
  * AT+VERSION?              Print version of the module
  * AT+PWSD=<four number>    Set pin code needed to pair to the device
@@ -32,7 +33,8 @@
 
 SoftwareSerial mySerial(4, 3);
 
-#define BPS 38400 // Default speed in command mode
+#define PC_BPS 38400
+#define HC_BPS 38400 // Default speed in command mode
 
 void setup()
 {
@@ -40,10 +42,10 @@ void setup()
   pinMode(11, OUTPUT);
   digitalWrite(11, HIGH);
 
-  mySerial.begin(BPS);
+  mySerial.begin(HC_BPS);
 
   // Connection to PC over main UART port
-  Serial.begin(BPS);
+  Serial.begin(PC_BPS);
   Serial.println("Ready.");
 }
 

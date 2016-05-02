@@ -53,6 +53,10 @@ I noticed that for some reason the bluetooth system and rfcomm pairing don't ful
 
 The two hex words are identifier for the bluetooth USB stick that I use and you can see yours using lsusb command.
 
+It is a good idea to secure the service by proxying it over a secure HTTPS connection. Good example for doing it with nginx:
+
+	https://www.digitalocean.com/community/tutorials/how-to-configure-nginx-with-ssl-as-a-reverse-proxy-for-jenkins
+
 Project status
 --------------
 

@@ -124,8 +124,8 @@ SERIAL_CLASS mySerial2(11, 2);        // RX, TX pins for third serial port (seri
 #define CAM_SERIAL mySerial2    // Serial port for camera module
 #define BT_SERIAL mySerial      // Serial port for HC-05 bluetooth module
 #define DEBUG_SERIAL Serial     // Serial port for debug messages, if debugging is enabled
-#define CAM_BPS 57600           // Change camera to this baud rate on fly (read warning at beginning)
-#define BT_BPS 115200           // Same as set in BT module. Can be very low, but use CAM_BPS or higher if using serial camera.
+#define CAM_BPS 57600           // Change camera to this baud rate (read warning at beginning)
+#define BT_BPS 57600            // Same as set in BT module. Can be very low, but use CAM_BPS or higher if using serial camera.
 #define DEBUG_BPS 115200        // Can be anything your terminal supports
 
 // Different baud rates the serial camera can have

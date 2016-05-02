@@ -3,4 +3,7 @@
 * Add a recommended http->https proxy
 * Create graphical schematic of the hardware connections
 * Add icons for serial camera enable and disable buttons
-* Add a queue for commands, and pause sending them when receiving a photo
+* Test command queue
+* Change BT connection from 115200 to 57600bps for softserial compatibility
+  * See if it is then possible to remove some usleeps from the backend code
+* Decrease photo interval to very small in backend, if new command queue code works

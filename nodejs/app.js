@@ -61,9 +61,13 @@ var sleep = require('sleep');
 
 // Collect received data from serial port as it arrives to this buffer
 var received_data = new Buffer(0);
+var last_received_data_time = (new Date).getTime();
 
 // Last fully received jpeg file (begin with placeholder data that is minimal valid jpeg data)
 var last_jpeg = new Buffer("ffd8ffdb00430001010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101ffc2000b080001000101011100ffc40014000100000000000000000000000000000003ffda00080101000000013Fffd9", "hex");
+
+// List of commands to be sent
+var cmd_queue = [];
 
 /**
  * Serial port callback for received data
@@ -73,6 +77,7 @@ port.on('data', function(data) {
   var old_data = received_data;
   received_data = Buffer.concat([old_data, data]);
   process.stdout.write("Received " + received_data.length + " bytes\r");
+  last_received_data_time = (new Date).getTime();
   
   // "EOF\n" marks end of full file
   if ((received_data[received_data.length-4] == 69) &&
@@ -112,19 +117,52 @@ port.on('close', function() {
 });
 
 /**
- * Send a command to serial port
+ * Add command to queue
  */
-function command(cmd)
+function command(cmd, priority)
 {
-  // Send one character a time to work-around SerialPort overflow bug
+  // Don't flood queue with multiple photo commands that take a lot of time
+  //if ((cmd == "photo") && (cmd_queue.indexOf("photo") >= 0)) return;
+
+  // Don't add photo command if there is anything else in the queue
+  if ((cmd_queue.length > 0) && (cmd == "photo")) return;
+
+  // If adding anything else to the queue, remove old photo command
+  var photoIndex = cmd_queue.indexOf("photo");
+  if (photoIndex >= 0) cmd_queue.splice(photoIndex, 1);
+  
+  // Add command to the queue
+  if (priority == true)
+    cmd_queue.unshift(cmd);
+  else
+    cmd_queue.push(cmd);
+}
+
+/**
+ * Send next command to serial port
+ */
+function process_cmd_queue()
+{
+  // Don't send command if we dont have any or still receiving data
+  if (cmd_queue.length <= 0) return;
+  var current_time = (new Date).getTime();
+  if ((current_time - last_received_data_time) < 100) return;
+
+  cmd = cmd_queue[0];
   console.log("Sending command: " + cmd);
   for (var i=0; i<cmd.length; i++)
   {
     port.write(cmd[i]);
+
+    // Sleep 100us between characters to not overflood the port
     sleep.usleep(100);
   }
+
   port.write('\n');
+
+  cmd_queue.shift();
 }
+setInterval(function(){process_cmd_queue()}, 10);
 
 /**
  * Simple template engine (replace some parts of HTML page with variables
@@ -182,17 +220,17 @@ app.get('/move', function (req, res) {
   var cmd = req.query.dir;
   if ((cmd == "forward") || (cmd == "backward"))
   {
-    command("start_speed 63");
-    command("move_speed 127");
-    command("amount " + amount);
-    command(cmd);
+    command("start_speed 63", false);
+    command("move_speed 127", false);
+    command("amount " + amount, false);
+    command(cmd, false);
   }
   else if ((cmd == "left") || (cmd == "right"))
   {
-    command("start_speed 255");
-    command("move_speed 255");
-    command("amount " + amount);
-    command(cmd);
+    command("start_speed 255", false);
+    command("move_speed 255", false);
+    command("amount " + amount, false);
+    command(cmd, false);
   }
   res.send();
 });
@@ -201,7 +239,7 @@ app.get('/move', function (req, res) {
  * Express GET event for "photo" api call
  */
 app.get('/photo', function (req, res) {
-  command("photo");
+  command("photo", false);
   res.send();
 });
 
@@ -209,7 +247,7 @@ app.get('/photo', function (req, res) {
  * Express GET event for "light_on" api call
  */
 app.get('/light_on', function (req, res) {
-  command("light on");
+  command("light on", true);
   res.send();
 });
 
@@ -217,7 +255,7 @@ app.get('/light_on', function (req, res) {
  * Express GET event for "light_off" api call
  */
 app.get('/light_off', function (req, res) {
-  command("light off");
+  command("light off", true);
   res.send();
 });
 
@@ -225,7 +263,7 @@ app.get('/light_off', function (req, res) {
  * Express GET event for "laser_on" api call
  */
 app.get('/laser_on', function (req, res) {
-  command("laser on");
+  command("laser on", true);
   res.send();
 });
 
@@ -233,7 +271,7 @@ app.get('/laser_on', function (req, res) {
  * Express GET event for "laser_off" api call
  */
 app.get('/laser_off', function (req, res) {
-  command("laser off");
+  command("laser off", true);
   res.send();
 });
 
@@ -241,7 +279,7 @@ app.get('/laser_off', function (req, res) {
  * Express GET event for "camera_on" api call
  */
 app.get('/camera_on', function (req, res) {
-  command("camera on");
+  command("camera on", true);
   res.send();
 });
 
@@ -249,8 +287,14 @@ app.get('/camera_on', function (req, res) {
  * Express GET event for "camera_off" api call
  */
 app.get('/camera_off', function (req, res) {
-  command("camera off");
+  command("camera off", true);
   res.send();
+});
+
+app.get('/restart', function (req, res) {
+  console.log('Exiting by request, to be restarted...');
+  res.send();
+  process.exit(0);
 });
 
 /**
