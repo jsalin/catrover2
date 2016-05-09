@@ -311,7 +311,8 @@ app.get('/', function (req, res) {
 setInterval(function() {
   if (!port.isOpen())
   {
-    console.log('Serial port is not open, trying to open');
+    //console.log('Serial port is not open, trying to open');
+    process.stdout.write(".");
     port.open();
   }
 }, 5000);
